@@ -4,8 +4,9 @@ import { storage } from './storage';
 
 const BASE_URL = 'https://mof.gov.ae';
 const START_URL = 'https://mof.gov.ae/en/home/';
-const MAX_PAGES = 100;
+const MAX_PAGES = 50;
 const DELAY_BETWEEN_REQUESTS = 500;
+const MAX_QUEUE_SIZE = 100;
 
 const E_INVOICING_KEYWORDS = [
   'e-invoice',
@@ -73,9 +74,11 @@ export async function startScraping(): Promise<CrawlResult> {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           },
           maxRedirects: 5,
+          maxContentLength: 5 * 1024 * 1024,
         });
 
-        const $ = cheerio.load(response.data);
+        const html = response.data;
+        const $ = cheerio.load(html);
 
         $('script, style, nav, footer, header').remove();
         const textContent = $('body').text().replace(/\s+/g, ' ').trim();
@@ -110,9 +113,11 @@ export async function startScraping(): Promise<CrawlResult> {
           });
         }
 
-        $('a[href]').each((_, element) => {
-          const href = $(element).attr('href');
-          if (!href) return;
+        const links = $('a[href]').map((_, element) => $(element).attr('href')).get();
+        
+        for (const href of links) {
+          if (!href) continue;
+          if (urlQueue.length >= MAX_QUEUE_SIZE) break;
 
           let absoluteUrl: string;
           try {
@@ -121,7 +126,7 @@ export async function startScraping(): Promise<CrawlResult> {
             } else if (href.startsWith('/')) {
               absoluteUrl = BASE_URL + href;
             } else if (href.startsWith('#') || href.startsWith('javascript:')) {
-              return;
+              continue;
             } else {
               const base = currentUrl.substring(0, currentUrl.lastIndexOf('/') + 1);
               absoluteUrl = new URL(href, base).href;
@@ -129,14 +134,14 @@ export async function startScraping(): Promise<CrawlResult> {
 
             if (absoluteUrl.startsWith(BASE_URL) && !absoluteUrl.includes('#')) {
               const cleanUrl = absoluteUrl.split('?')[0];
-              if (!urlQueue.includes(cleanUrl) && urlQueue.length < MAX_PAGES * 2) {
+              if (!urlQueue.includes(cleanUrl)) {
                 urlQueue.push(cleanUrl);
               }
             }
           } catch (error) {
             // Invalid URL, skip
           }
-        });
+        }
 
       } catch (error) {
         console.error(`Error crawling ${currentUrl}:`, error);
