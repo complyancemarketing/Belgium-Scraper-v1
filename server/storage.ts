@@ -28,6 +28,7 @@ export class MemStorage implements IStorage {
       totalPagesCrawled: 0,
       eInvoicingPagesFound: 0,
       duplicatesIgnored: 0,
+      maxPages: 100,
     };
   }
 

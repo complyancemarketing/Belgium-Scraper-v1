@@ -16,6 +16,7 @@ export const scrapingSessionSchema = z.object({
   totalPagesCrawled: z.number(),
   eInvoicingPagesFound: z.number(),
   duplicatesIgnored: z.number(),
+  maxPages: z.number(),
   errorMessage: z.string().optional(),
 });
 

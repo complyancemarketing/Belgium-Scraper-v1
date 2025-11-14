@@ -43,6 +43,7 @@ export async function startScraping(): Promise<CrawlResult> {
       totalPagesCrawled: 0,
       eInvoicingPagesFound: 0,
       duplicatesIgnored: 0,
+      maxPages: MAX_PAGES,
     });
 
     await storage.clearPages();

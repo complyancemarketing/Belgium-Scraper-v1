@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Download, FileSpreadsheet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +28,7 @@ export default function Dashboard() {
 
   const { data: pages = [], isLoading: pagesLoading } = useQuery<ScrapedPage[]>({
     queryKey: ['/api/pages'],
+    refetchInterval: session?.status === 'scraping' ? 2000 : false,
   });
 
   const startScrapingMutation = useMutation({
@@ -78,8 +80,8 @@ export default function Dashboard() {
 
   const isScraping = session?.status === 'scraping';
   const hasPages = pages.length > 0;
-  const progressPercentage = session?.totalPagesCrawled 
-    ? Math.min((session.eInvoicingPagesFound / Math.max(session.totalPagesCrawled, 1)) * 100, 100)
+  const progressPercentage = session?.totalPagesCrawled && session?.maxPages
+    ? Math.min((session.totalPagesCrawled / session.maxPages) * 100, 100)
     : 0;
 
   return (
@@ -126,11 +128,13 @@ export default function Dashboard() {
               <label className="text-sm font-semibold text-foreground mb-2 block">
                 Target URL
               </label>
-              <div className="bg-muted px-4 py-3 rounded-md border border-border">
-                <code className="text-sm font-mono text-muted-foreground" data-testid="text-target-url">
-                  https://mof.gov.ae/en/home/
-                </code>
-              </div>
+              <Input
+                type="text"
+                value="https://mof.gov.ae/en/home/"
+                readOnly
+                className="font-mono text-sm bg-muted cursor-default"
+                data-testid="input-target-url"
+              />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4">
