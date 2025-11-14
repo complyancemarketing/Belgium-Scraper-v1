@@ -1,37 +1,70 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { type ScrapedPage, type InsertScrapedPage, type ScrapingSession, type InsertScrapingSession } from "@shared/schema";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getSession(): Promise<ScrapingSession>;
+  updateSession(session: Partial<ScrapingSession>): Promise<ScrapingSession>;
+  
+  getAllPages(): Promise<ScrapedPage[]>;
+  addPage(page: InsertScrapedPage): Promise<ScrapedPage>;
+  clearPages(): Promise<void>;
+  
+  addVisitedUrl(url: string): Promise<void>;
+  hasVisitedUrl(url: string): Promise<boolean>;
+  clearVisitedUrls(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private pages: Map<string, ScrapedPage>;
+  private session: ScrapingSession;
+  private visitedUrls: Set<string>;
 
   constructor() {
-    this.users = new Map();
+    this.pages = new Map();
+    this.visitedUrls = new Set();
+    this.session = {
+      id: randomUUID(),
+      status: 'idle',
+      totalPagesCrawled: 0,
+      eInvoicingPagesFound: 0,
+      duplicatesIgnored: 0,
+    };
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getSession(): Promise<ScrapingSession> {
+    return { ...this.session };
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async updateSession(updates: Partial<ScrapingSession>): Promise<ScrapingSession> {
+    this.session = { ...this.session, ...updates };
+    return { ...this.session };
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async getAllPages(): Promise<ScrapedPage[]> {
+    return Array.from(this.pages.values());
+  }
+
+  async addPage(insertPage: InsertScrapedPage): Promise<ScrapedPage> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const page: ScrapedPage = { ...insertPage, id };
+    this.pages.set(id, page);
+    return page;
+  }
+
+  async clearPages(): Promise<void> {
+    this.pages.clear();
+  }
+
+  async addVisitedUrl(url: string): Promise<void> {
+    this.visitedUrls.add(url);
+  }
+
+  async hasVisitedUrl(url: string): Promise<boolean> {
+    return this.visitedUrls.has(url);
+  }
+
+  async clearVisitedUrls(): Promise<void> {
+    this.visitedUrls.clear();
   }
 }
 
