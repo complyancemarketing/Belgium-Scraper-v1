@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Download, FileSpreadsheet, Square, Send } from "lucide-react";
+import { Download, FileSpreadsheet, Square, Send, ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { ResultsTable } from "@/components/results-table";
 import { EmptyState } from "@/components/empty-state";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { exportToExcel } from "@/lib/excel-export";
+import { Link } from "wouter";
 import type { AppSettings, ScrapedPage, ScrapingSession, ScraperStats } from "@shared/schema";
 
 export default function Dashboard() {
@@ -251,6 +252,14 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-8">
         <header className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Home
+              </Button>
+            </Link>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="text-page-title">
