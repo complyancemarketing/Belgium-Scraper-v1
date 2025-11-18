@@ -12,7 +12,7 @@ export function EmptyState() {
           No E-Invoicing Pages Yet
         </h3>
         <p className="text-base text-muted-foreground mb-6" data-testid="text-empty-description">
-          Click the "Start Scraping" button above to begin crawling the UAE Ministry of Finance website for e-invoicing related content.
+          Click the "Start Scraping" button above to begin crawling the Belgium BOSA website for e-invoicing related content.
         </p>
         <div className="bg-primary/5 border border-primary/20 rounded-md p-4 w-full">
           <p className="text-sm text-muted-foreground">

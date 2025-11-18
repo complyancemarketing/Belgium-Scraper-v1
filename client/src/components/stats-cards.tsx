@@ -1,37 +1,39 @@
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, CheckCircle, Clock } from "lucide-react";
-import type { ScrapingSession } from "@shared/schema";
+import type { ScraperStats } from "@shared/schema";
 
 interface StatsCardsProps {
-  session?: ScrapingSession;
+  stats?: ScraperStats;
   isLoading: boolean;
 }
 
-export function StatsCards({ session, isLoading }: StatsCardsProps) {
-  const stats = [
+export function StatsCards({ stats, isLoading }: StatsCardsProps) {
+  const lastScrapeText = stats?.lastScrapeAt
+    ? new Date(stats.lastScrapeAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "Never";
+
+  const cardStats = [
     {
       title: "Total Pages Crawled",
-      value: session?.totalPagesCrawled ?? 0,
+      value: stats?.totalPages ?? 0,
       icon: FileText,
       testId: "stat-total-crawled",
     },
     {
       title: "E-Invoicing Pages Found",
-      value: session?.eInvoicingPagesFound ?? 0,
+      value: stats?.einvoicingPages ?? 0,
       icon: CheckCircle,
       testId: "stat-einvoicing-found",
     },
     {
       title: "Last Scrape",
-      value: session?.completedAt 
-        ? new Date(session.completedAt).toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          })
-        : 'Never',
+      value: lastScrapeText,
       icon: Clock,
       testId: "stat-last-scrape",
     },
@@ -52,7 +54,7 @@ export function StatsCards({ session, isLoading }: StatsCardsProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-      {stats.map((stat) => {
+      {cardStats.map((stat) => {
         const Icon = stat.icon;
         return (
           <Card key={stat.title} className="p-6 hover-elevate" data-testid={stat.testId}>

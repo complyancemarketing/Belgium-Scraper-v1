@@ -1,6 +1,11 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import cron from "node-cron";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { getAppSettings } from "./persistence";
+import { isScrapingInProgress, startScraping } from "./scraper";
+
 
 const app = express();
 
@@ -71,11 +76,30 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
+
+  cron.schedule(
+    "30 16 * * *",
+    async () => {
+      try {
+        const settings = await getAppSettings();
+        if (!settings.autoRunEnabled) {
+          return;
+        }
+        if (isScrapingInProgress()) {
+          log("Skipping auto-run (scraper busy)");
+          return;
+        }
+        log("Starting scheduled auto-run scrape (10 PM IST)");
+        startScraping({ mode: "auto", onlyNew: true }).catch((error) => {
+          console.error("Scheduled scrape failed:", error);
+        });
+      } catch (error) {
+        console.error("Failed to execute scheduled scrape:", error);
+      }
+    },
+    { timezone: "UTC" }
+  );
 })();

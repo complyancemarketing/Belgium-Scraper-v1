@@ -12,6 +12,7 @@ export interface IStorage {
   addVisitedUrl(url: string): Promise<void>;
   hasVisitedUrl(url: string): Promise<boolean>;
   clearVisitedUrls(): Promise<void>;
+  resetAll(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -28,7 +29,8 @@ export class MemStorage implements IStorage {
       totalPagesCrawled: 0,
       eInvoicingPagesFound: 0,
       duplicatesIgnored: 0,
-      maxPages: 50,
+      maxPages: undefined, // No limit by default
+      currentUrl: undefined,
     };
   }
 
@@ -66,6 +68,23 @@ export class MemStorage implements IStorage {
 
   async clearVisitedUrls(): Promise<void> {
     this.visitedUrls.clear();
+  }
+
+  async resetAll(): Promise<void> {
+    this.pages.clear();
+    this.visitedUrls.clear();
+    this.session = {
+      id: randomUUID(),
+      status: 'idle',
+      totalPagesCrawled: 0,
+      eInvoicingPagesFound: 0,
+      duplicatesIgnored: 0,
+      maxPages: undefined,
+      currentUrl: undefined,
+      startedAt: undefined,
+      completedAt: undefined,
+      errorMessage: undefined,
+    };
   }
 }
 

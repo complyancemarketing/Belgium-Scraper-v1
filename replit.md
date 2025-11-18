@@ -1,10 +1,10 @@
-# UAE Ministry of Finance E-Invoicing Web Scraper
+# Belgium BOSA E-Invoicing Web Scraper
 
 ## Overview
 
-This is a web scraper dashboard application designed to crawl the UAE Ministry of Finance website (mof.gov.ae) and extract e-invoicing related content. The application provides a Material Design-inspired interface for initiating scraping jobs, monitoring progress, and viewing/exporting results in a data-rich table format.
+This is a web scraper dashboard application designed to crawl the Belgium BOSA website (bosa.belgium.be) and extract e-invoicing related content. The application provides a Material Design-inspired interface for initiating scraping jobs, monitoring progress, and viewing/exporting results in a data-rich table format.
 
-The system automatically identifies pages containing e-invoicing keywords (e-invoice, einvoicing, electronic invoice, etc.) and stores them for review and export to Excel format.
+The system automatically identifies pages containing e-invoicing keywords (e-invoice, einvoicing, electronic invoice, etc.) and stores them in dedicated Belgium tables in Supabase for review and export to Excel format.
 
 ## User Preferences
 
