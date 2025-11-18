@@ -174,7 +174,7 @@ export default function Home() {
                           </Badge>
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {getRelativeTime(page.scrapedAt)}
+                            {formatDate(page.scrapedAt)}
                           </span>
                         </div>
                         <h4 className="font-semibold text-foreground mb-2 line-clamp-2">
