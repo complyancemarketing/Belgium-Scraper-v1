@@ -1,4 +1,4 @@
-import { scrapeWebsite } from './scraper';
+import { startScraping } from './scraper';
 import { getAppSettings } from './persistence';
 
 /**
@@ -30,7 +30,7 @@ async function runScraper() {
     
     // Run the scraper
     console.log('🔍 Starting Belgium e-invoicing scraper...');
-    await scrapeWebsite();
+    await startScraping();
     
     console.log('✅ Scraper completed successfully');
     process.exit(0);
