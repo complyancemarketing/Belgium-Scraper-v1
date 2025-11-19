@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { StatsCards } from "@/components/stats-cards";
-import { ResultsTable } from "@/components/results-table";
+import { SummaryAccordion } from "@/components/summary-accordion";
 import { EmptyState } from "@/components/empty-state";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { exportToExcel } from "@/lib/excel-export";
@@ -22,7 +22,6 @@ export default function Dashboard() {
   const [isExporting, setIsExporting] = useState(false);
   const lastLoggedUrl = useRef<string | undefined>(undefined);
   const lastEInvoicingCount = useRef<number>(0);
-  const [teamsWebhookInput, setTeamsWebhookInput] = useState("");
 
   const { data: session, isLoading: sessionLoading } = useQuery<ScrapingSession>({
     queryKey: ['/api/session'],
@@ -80,12 +79,6 @@ export default function Dashboard() {
     queryKey: ['/api/pages'],
     refetchInterval: session?.status === 'scraping' ? 2000 : false,
   });
-
-  useEffect(() => {
-    if (typeof settings?.teamsWebhookUrl !== "undefined") {
-      setTeamsWebhookInput(settings.teamsWebhookUrl ?? "");
-    }
-  }, [settings?.teamsWebhookUrl]);
 
   const startScrapingMutation = useMutation({
     mutationFn: () => apiRequest('POST', '/api/scrape/start', { onlyNew: true }),
@@ -211,12 +204,6 @@ export default function Dashboard() {
     updateSettingsMutation.mutate({ autoRunEnabled: checked });
   };
 
-  const handleSaveTeamsWebhook = () => {
-    updateSettingsMutation.mutate({
-      teamsWebhookUrl: teamsWebhookInput.trim() ? teamsWebhookInput.trim() : null,
-    });
-  };
-
   const handleResetData = () => {
     const confirmed = window.confirm(
       "This will erase all cached pages (including Firestore data) and reset stats. Continue?"
@@ -231,10 +218,6 @@ export default function Dashboard() {
     ? Math.min((session.totalPagesCrawled / session.maxPages) * 100, 100)
     : 0;
   const autoRunDisabled =
-    settingsLoading ||
-    updateSettingsMutation.isPending ||
-    settings?.cloudEnabled === false;
-  const webhookDisabled =
     settingsLoading ||
     updateSettingsMutation.isPending ||
     settings?.cloudEnabled === false;
@@ -433,36 +416,6 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="teams-webhook" className="text-sm font-semibold">
-                    Teams channel webhook
-                  </Label>
-                  {settings?.teamsWebhookUrl && (
-                    <Badge variant="secondary">Active</Badge>
-                  )}
-                </div>
-                <Input
-                  id="teams-webhook"
-                  type="url"
-                  placeholder="https://outlook.office.com/webhook/..."
-                  value={teamsWebhookInput}
-                  onChange={(event) => setTeamsWebhookInput(event.target.value)}
-                  disabled={webhookDisabled}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={handleSaveTeamsWebhook}
-                    disabled={webhookDisabled}
-                  >
-                    Save Webhook
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Sends a notification to your Teams channel whenever new e-invoicing pages are detected.
-                </p>
-              </div>
             </div>
 
             {session?.status === 'completed' && (
@@ -498,7 +451,7 @@ export default function Dashboard() {
             </div>
           </Card>
         ) : hasPages ? (
-          <ResultsTable pages={pages} />
+          <SummaryAccordion pages={pages} />
         ) : (
           <EmptyState />
         )}

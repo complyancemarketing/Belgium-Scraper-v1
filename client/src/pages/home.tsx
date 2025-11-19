@@ -1,19 +1,23 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import { 
   ExternalLink, 
   Search, 
   Calendar, 
   FileText,
-  Globe
+  Globe,
+  Filter
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import type { ScrapedPage } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { ScrapedPage, AppSettings } from "@shared/schema";
 
 interface CountryPage extends ScrapedPage {
   country: string;
@@ -27,12 +31,48 @@ const COUNTRIES = [
 ];
 
 export default function Home() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all");
+  const [teamsWebhookInput, setTeamsWebhookInput] = useState("");
 
   // Fetch Belgium pages
   const { data: belgiumPages = [] } = useQuery<ScrapedPage[]>({
     queryKey: ['/api/pages'],
+    refetchInterval: 30000,
   });
+
+  // Fetch settings for Teams webhook
+  const { data: settings, isLoading: settingsLoading } = useQuery<AppSettings>({
+    queryKey: ['/api/settings'],
+  });
+
+  // Update settings mutation
+  const updateSettingsMutation = useMutation({
+    mutationFn: (payload: Partial<AppSettings>) =>
+      apiRequest('POST', '/api/settings', payload).then((res) => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      toast({
+        title: "Settings Updated",
+        description: "Teams webhook URL has been saved successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save webhook URL.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveTeamsWebhook = () => {
+    updateSettingsMutation.mutate({
+      teamsWebhookUrl: teamsWebhookInput.trim() ? teamsWebhookInput.trim() : null,
+    });
+  };
 
   // Combine all country pages (for now just Belgium)
   const allPages: CountryPage[] = belgiumPages.map(page => ({
@@ -41,14 +81,40 @@ export default function Home() {
     countryCode: "belgium"
   }));
 
+  // Filter by date
+  const getDateFilteredPages = (pages: CountryPage[]) => {
+    if (dateFilter === "all") return pages;
+    
+    const now = new Date();
+    const filterDate = new Date();
+    
+    if (dateFilter === "7days") {
+      filterDate.setDate(now.getDate() - 7);
+    } else if (dateFilter === "30days") {
+      filterDate.setDate(now.getDate() - 30);
+    }
+    
+    return pages.filter(page => new Date(page.scrapedAt) >= filterDate);
+  };
+
   // Filter and sort pages
-  const filteredPages = allPages
-    .filter(page => 
-      searchQuery === "" || 
-      page.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      page.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      page.url.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+  const filteredPages = getDateFilteredPages(allPages)
+    .filter(page => {
+      // Country filter
+      if (countryFilter !== "all" && page.countryCode !== countryFilter) {
+        return false;
+      }
+      
+      // Search filter
+      if (searchQuery === "") return true;
+      
+      return (
+        page.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        page.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        page.summary?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        page.matchedKeyword?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    })
     .sort((a, b) => new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime());
 
   const formatDate = (dateString: string) => {
@@ -130,6 +196,42 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Teams Webhook Configuration */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Teams Channel Webhook</span>
+              {settings?.teamsWebhookUrl && (
+                <Badge variant="secondary">Active</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="teams-webhook">Webhook URL</Label>
+              <Input
+                id="teams-webhook"
+                type="url"
+                placeholder="https://complyance1.webhook.office.com/webhookb2/..."
+                value={teamsWebhookInput || settings?.teamsWebhookUrl || ""}
+                onChange={(event) => setTeamsWebhookInput(event.target.value)}
+                disabled={settingsLoading || updateSettingsMutation.isPending}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveTeamsWebhook}
+                disabled={settingsLoading || updateSettingsMutation.isPending}
+              >
+                {updateSettingsMutation.isPending ? "Saving..." : "Save Webhook"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Sends a notification to your Teams channel whenever new e-invoicing pages are detected across all countries.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Search and Recent Updates */}
         <Card>
           <CardHeader>
@@ -137,6 +239,8 @@ export default function Home() {
               <FileText className="h-5 w-5" />
               Recent E-Invoicing Updates
             </CardTitle>
+            
+            {/* Search Bar */}
             <div className="relative mt-4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -147,6 +251,42 @@ export default function Home() {
                 className="pl-10"
               />
             </div>
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-3">
+              <div className="flex-1">
+                <Label htmlFor="date-filter" className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Date Range
+                </Label>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger id="date-filter">
+                    <SelectValue placeholder="Select date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="7days">Last 7 Days</SelectItem>
+                    <SelectItem value="30days">Last 30 Days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1">
+                <Label htmlFor="country-filter" className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                  <Globe className="h-3 w-3" />
+                  Country
+                </Label>
+                <Select value={countryFilter} onValueChange={setCountryFilter}>
+                  <SelectTrigger id="country-filter">
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Countries</SelectItem>
+                    <SelectItem value="belgium">🇧🇪 Belgium</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {filteredPages.length === 0 ? (
@@ -154,9 +294,10 @@ export default function Home() {
                 <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No updates found</h3>
                 <p className="text-muted-foreground">
-                  {searchQuery 
-                    ? "Try adjusting your search terms" 
-                    : "Start scraping to see e-invoicing updates"}
+                  {searchQuery || dateFilter !== "all" || countryFilter !== "all"
+                    ? "Try adjusting your filters or search terms" 
+                    : "Start monitoring countries to see e-invoicing updates"
+                  }
                 </p>
               </div>
             ) : (
@@ -180,8 +321,8 @@ export default function Home() {
                         <h4 className="font-semibold text-foreground mb-2 line-clamp-2">
                           {page.title}
                         </h4>
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                          {page.content}
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
+                          {page.summary || page.content}
                         </p>
                         <a
                           href={page.url}

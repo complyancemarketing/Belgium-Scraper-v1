@@ -129,7 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No e-invoicing pages to send" });
       }
 
-      await sendTeamsNotification(settings.teamsWebhookUrl, pages);
+      await sendTeamsNotification(settings.teamsWebhookUrl, pages, "Belgium");
       res.json({ message: `Sent ${pages.length} e-invoicing pages to Teams` });
     } catch (error) {
       console.error("Failed to send Teams notification:", error);

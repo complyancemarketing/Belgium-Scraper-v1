@@ -69,7 +69,7 @@ export async function fetchPersistedPages(): Promise<ScrapedPage[]> {
   // Fetch only e-invoicing pages from the dedicated table
   const { data, error } = await supabase
     .from(EINVOICING_COLLECTION)
-    .select("id,url,title,content,scraped_at")
+    .select("id,url,title,content,scraped_at,summary,matched_keyword")
     .order("scraped_at", { ascending: false });
 
   if (error) {
@@ -84,12 +84,16 @@ export async function fetchPersistedPages(): Promise<ScrapedPage[]> {
       title: row.title,
       content: row.content,
       scrapedAt: row.scraped_at,
+      summary: row.summary,
+      matchedKeyword: row.matched_keyword,
     })) ?? []
   );
 }
 
 interface PersistPageInput extends InsertScrapedPage {
   isEInvoicing: boolean;
+  summary?: string;
+  matchedKeyword?: string;
 }
 
 export async function savePageToCloud(
@@ -100,6 +104,8 @@ export async function savePageToCloud(
   }
 
   const pageId = hashUrl(page.url);
+
+  console.log(`[persistence] Saving page - isEInvoicing: ${page.isEInvoicing}, matchedKeyword: "${page.matchedKeyword}"`);
 
   const { data: existing, error: selectError } = await supabase
     .from(PAGES_COLLECTION)
@@ -119,6 +125,8 @@ export async function savePageToCloud(
       content: page.content,
       scraped_at: page.scrapedAt,
       is_e_invoicing: page.isEInvoicing,
+      summary: page.summary || null,
+      matched_keyword: page.matchedKeyword || null,
     },
     { onConflict: "id" }
   );
@@ -137,6 +145,8 @@ export async function savePageToCloud(
           title: page.title,
           content: page.content,
           scraped_at: page.scrapedAt,
+          summary: page.summary || null,
+          matched_keyword: page.matchedKeyword || null,
         },
         { onConflict: "id" }
       );
@@ -264,6 +274,7 @@ export async function clearAllCloudData(): Promise<void> {
 export interface TeamsPagePayload {
   title: string;
   url: string;
+  summary?: string;
 }
 
 export async function fetchAllEInvoicingPages(): Promise<TeamsPagePayload[]> {
@@ -271,7 +282,7 @@ export async function fetchAllEInvoicingPages(): Promise<TeamsPagePayload[]> {
 
   const { data, error } = await supabase
     .from(EINVOICING_COLLECTION)
-    .select("title,url")
+    .select("title,url,summary")
     .order("scraped_at", { ascending: false });
 
   if (error) {
@@ -283,6 +294,7 @@ export async function fetchAllEInvoicingPages(): Promise<TeamsPagePayload[]> {
     data?.map((row) => ({
       title: row.title,
       url: row.url,
+      summary: row.summary,
     })) ?? []
   );
 }

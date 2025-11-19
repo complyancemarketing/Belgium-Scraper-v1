@@ -6,6 +6,8 @@ export const scrapedPageSchema = z.object({
   title: z.string(),
   content: z.string(),
   scrapedAt: z.string(),
+  summary: z.string().optional(),
+  matchedKeyword: z.string().optional(),
 });
 
 export const scrapingSessionSchema = z.object({

@@ -9,6 +9,7 @@ import {
   savePageToCloud,
 } from "./persistence";
 import { sendTeamsNotification } from "./integrations/teams";
+import { generateSummary } from "./ai-summarizer";
 
 const BASE_URL = 'https://bosa.belgium.be';
 const SITEMAP_INDEX_URL = 'https://bosa.belgium.be/sitemap.xml';
@@ -17,56 +18,67 @@ const MAX_QUEUE_SIZE = 10000; // Increased to handle more URLs
 
 const E_INVOICING_KEYWORDS = [
   // English
-  'e-invoice',
-  'e-invoicing',
-  'einvoice',
-  'einvoicing',
-  'electronic invoice',
-  'electronic invoicing',
-  'digital invoice',
-  'digital invoicing',
-  'tax invoice',
-  'vat invoice',
-  'electronic billing',
+  'e-invoice', 'e-invoices', 'e-invoicing',
+  'einvoice', 'einvoices', 'einvoicing',
+  'electronic invoice', 'electronic invoices', 'electronic invoicing',
+  'digital invoice', 'digital invoices', 'digital invoicing',
+  'online invoice', 'online invoices', 'online invoicing',
+  'tax invoice', 'tax invoices',
+  'vat invoice', 'vat invoices',
+  'electronic billing', 'digital billing', 'online billing',
   'e-billing',
-  'peppol',
-  'ubl',
-  'xml invoice',
-  'structured invoice',
-  'invoice automation',
+  'peppol', 'peppol network', 'peppol authority', 'peppol access point',
+  'ubl', 'universal business language',
+  'xml invoice', 'xml invoices', 'xml invoicing',
+  'structured invoice', 'structured invoices',
+  'invoice automation', 'automated invoicing',
+  'invoice digitization', 'invoice digitisation',
+  'paperless invoicing', 'paperless invoice',
   
   // French (Français)
-  'facturation électronique',
-  'facture électronique',
-  'e-facturation',
-  'e-facture',
-  'facture numérique',
-  'facturation numérique',
-  'facture digitale',
-  'facturation digitale',
-  'facture xml',
-  'facture structurée',
+  'facturation électronique', 'facture électronique', 'factures électroniques',
+  'e-facturation', 'e-facture', 'e-factures',
+  'facture numérique', 'factures numériques', 'facturation numérique',
+  'facture digitale', 'factures digitales', 'facturation digitale',
+  'facture en ligne', 'factures en ligne', 'facturation en ligne',
+  'facture xml', 'factures xml',
+  'facture structurée', 'factures structurées',
+  'dématérialisation des factures', 'dématérialisation facture',
+  'traitement des factures électroniques',
+  'automatisation des factures', 'automatisation facture',
+  'facturation sans papier',
+  'autorité peppol', 'réseau peppol',
   
   // Dutch (Nederlands)
-  'elektronische facturering',
-  'elektronische factuur',
+  'elektronische facturering', 'elektronische factureren', 'elektronisch factureren',
+  'elektronische factuur', 'elektronische facturen',
   'elektronische facturatie',
-  'e-facturering',
-  'e-factuur',
-  'digitale facturering',
-  'digitale factuur',
-  'gestructureerde factuur',
-  'xml factuur',
-  'facturatie',
+  'e-facturering', 'e-factureren',
+  'e-factuur', 'e-facturen', 'e-facturatie',
+  'digitale facturering', 'digitale factureren',
+  'digitale factuur', 'digitale facturen',
+  'online facturering', 'online factuur', 'online facturen',
+  'gestructureerde factuur', 'gestructureerde facturen',
+  'xml factuur', 'xml facturen',
+  'facturatie automatisering', 'geautomatiseerde facturering',
+  'digitalisering van facturen', 'facturatie digitalisering',
+  'papierloze facturering', 'papierloze facturen',
+  'verwerking van e-facturen',
+  'peppol autoriteit', 'peppol netwerk',
+  'btw factuur', 'btw facturen',
   
   // German (Deutsch)
-  'elektronische rechnung',
-  'e-rechnung',
-  'digitale rechnung',
+  'elektronische rechnung', 'elektronische rechnungen',
+  'e-rechnung', 'e-rechnungen',
+  'digitale rechnung', 'digitale rechnungen',
+  'online rechnung', 'online rechnungen',
   'elektronische rechnungsstellung',
-  'xml rechnung',
-  'strukturierte rechnung',
-  'rechnungsautomatisierung',
+  'xml rechnung', 'xml rechnungen',
+  'strukturierte rechnung', 'strukturierte rechnungen',
+  'rechnungsautomatisierung', 'automatisierte rechnungsstellung',
+  'digitalisierung von rechnungen', 'rechnungsdigitalisierung',
+  'papierlose rechnung', 'papierlose rechnungen',
+  'peppol behörde', 'peppol netzwerk',
 ];
 
 interface CrawlResult {
@@ -190,6 +202,63 @@ async function fetchUrlsFromSitemaps(): Promise<string[]> {
   }
 }
 
+/**
+ * Check if content is related to e-invoicing with enhanced pattern matching
+ */
+function checkEInvoicingMatch(text: string, title: string, url: string): { isMatch: boolean; keyword?: string } {
+  // First check exact keyword matches with word boundaries
+  for (const keyword of E_INVOICING_KEYWORDS) {
+    const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (regex.test(text) || regex.test(title) || regex.test(url)) {
+      return { isMatch: true, keyword };
+    }
+  }
+
+  // Pattern-based detection for compound words and variations (more strict)
+  const patterns = [
+    // E-invoice variations - must have "e" prefix
+    /\be[\s-]invoices?\b/i,
+    /\be[\s-]invoicing\b/i,
+    /\be[\s-]billing\b/i,
+    
+    // French variations - must have "e" prefix  
+    /\be[\s-]factures?\b/i,
+    /\be[\s-]facturation\b/i,
+    
+    // Dutch variations - must have "e" prefix
+    /\be[\s-]factuu?re?n?\b/i,
+    /\be[\s-]facturering\b/i,
+    /\be[\s-]facturatie\b/i,
+    
+    // German variations - must have "e" prefix
+    /\be[\s-]rechnunge?n?\b/i,
+    
+    // Electronic/digital + invoice/facture/factuur/rechnung (must have both words)
+    /\b(electronic|digital|online|digitale?|électronique|elektronische?)\s+(invoice|invoicing|facture|facturation|factuu?r|facturering|rechnung)e?s?\b/i,
+    
+    // PEPPOL (strong indicator)
+    /\bpeppol\b/i,
+    
+    // XML/UBL invoice patterns
+    /\b(xml|ubl)[\s-]?(invoice|facture|factuu?r|rechnung)e?s?\b/i,
+    
+    // Structured invoice patterns
+    /\b(structured|structurée|gestructureerde)[\s-]?(invoice|facture|factuu?r)e?s?\b/i,
+  ];
+
+  const combinedText = `${text} ${title} ${url}`.toLowerCase();
+  
+  for (const pattern of patterns) {
+    if (pattern.test(combinedText)) {
+      // Extract the matched text for reporting
+      const match = combinedText.match(pattern);
+      return { isMatch: true, keyword: match ? match[0] : 'pattern match' };
+    }
+  }
+
+  return { isMatch: false };
+}
+
 export async function startScraping(
   options: ScrapeOptions = {}
 ): Promise<CrawlResult> {
@@ -202,7 +271,7 @@ export async function startScraping(
   const mode = options.mode ?? "manual";
   const onlyNew = options.onlyNew ?? false;
   const runStartedAt = new Date();
-  const newEinvoicingPages: Array<{ title: string; url: string }> = [];
+  const newEinvoicingPages: Array<{ title: string; url: string; summary?: string; matchedKeyword?: string }> = [];
   let pagesCrawled = 0;
 
   try {
@@ -281,19 +350,66 @@ export async function startScraping(
         const html = response.data;
         const $ = cheerio.load(html);
 
+        // Remove common non-content sections
         $('script, style, nav, footer, header').remove();
+        
+        // Remove application/service widget sections (not the main application page content)
+        $('.applications-widget, .more-applications, aside.applications, .sidebar-applications').remove();
+        
+        // Find and remove widget headings and their immediate sibling content
+        // This targets "Meer applicaties", "Anwendungen", etc. when they appear as widgets
+        $('h2, h3, h4, h5').filter((_, el) => {
+          const text = $(el).text().trim().toLowerCase();
+          return text === 'meer applicaties' || 
+                 text === 'more applications' || 
+                 text === 'plus d\'applications' ||
+                 text === 'weitere anwendungen' ||
+                 text === 'anwendungen' ||
+                 text === 'applicaties' ||
+                 text === 'applications';
+        }).each((_, el) => {
+          // Only remove if this is a widget section (has related links/items)
+          const $heading = $(el);
+          const $nextContent = $heading.nextUntil('h1, h2, h3, h4, h5');
+          
+          // If the section contains multiple links (typical of widgets), remove it
+          const linkCount = $nextContent.find('a').length;
+          if (linkCount >= 2) {
+            $heading.remove();
+            $nextContent.remove();
+          }
+        });
+        
         const textContent = $('body').text().replace(/\s+/g, ' ').trim();
         const title = $('title').text().trim() || 'Untitled Page';
 
-        const isEInvoicingRelated = E_INVOICING_KEYWORDS.some(keyword =>
-          textContent.toLowerCase().includes(keyword) ||
-          title.toLowerCase().includes(keyword) ||
-          currentUrl.toLowerCase().includes(keyword)
-        );
+        // Find which keyword matched (with enhanced pattern detection)
+        const matchResult = checkEInvoicingMatch(textContent, title, currentUrl);
+        const isEInvoicingRelated = matchResult.isMatch;
+        const matchedKeyword = matchResult.keyword;
+
+        if (isEInvoicingRelated) {
+          console.log(`🔍 E-invoicing page found: "${title}" - Keyword: "${matchedKeyword}"`);
+        }
 
         pagesCrawled++;
         const contentPreview = textContent.substring(0, 500);
         const scrapedAt = new Date().toISOString();
+
+        // Generate AI summary for e-invoicing pages
+        let summary: string | undefined;
+        if (isEInvoicingRelated) {
+          try {
+            summary = await generateSummary({
+              title,
+              content: textContent.substring(0, 2000), // Use more content for better summary
+              url: currentUrl,
+            });
+            console.log(`📝 Generated summary for: ${title}`);
+          } catch (error) {
+            console.error(`Failed to generate summary for ${currentUrl}:`, error);
+          }
+        }
 
         const persistenceResult = await savePageToCloud({
           url: currentUrl,
@@ -301,6 +417,8 @@ export async function startScraping(
           content: contentPreview,
           scrapedAt,
           isEInvoicing: isEInvoicingRelated,
+          summary,
+          matchedKeyword,
         });
 
         if (isEInvoicingRelated) {
@@ -310,6 +428,8 @@ export async function startScraping(
             title,
             content: contentPreview,
             scrapedAt,
+            summary,
+            matchedKeyword,
           });
 
           const session = await storage.getSession();
@@ -320,7 +440,7 @@ export async function startScraping(
           });
 
           if (persistenceResult.isNew) {
-            newEinvoicingPages.push({ title, url: currentUrl });
+            newEinvoicingPages.push({ title, url: currentUrl, summary, matchedKeyword });
           }
 
           // Log to server console
@@ -474,14 +594,14 @@ async function finalizeRun(
 }
 
 async function notifyTeamsAboutFindings(
-  pages: Array<{ title: string; url: string }>
+  pages: Array<{ title: string; url: string; summary?: string; matchedKeyword?: string }>
 ) {
   if (pages.length === 0) return;
   const settings = await getAppSettings();
   if (!settings.teamsWebhookUrl) return;
 
   try {
-    await sendTeamsNotification(settings.teamsWebhookUrl, pages);
+    await sendTeamsNotification(settings.teamsWebhookUrl, pages, "Belgium");
   } catch (error) {
     console.error("Failed to notify Teams channel:", error);
   }
