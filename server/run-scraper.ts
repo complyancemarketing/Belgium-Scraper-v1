@@ -1,5 +1,5 @@
 import { scrapeWebsite } from './scraper';
-import { loadSettings } from './storage';
+import { getAppSettings } from './persistence';
 
 /**
  * Standalone scraper runner for GitHub Actions
@@ -11,10 +11,10 @@ async function runScraper() {
   
   try {
     // Load settings to check auto-run toggle
-    const settings = await loadSettings();
+    const settings = await getAppSettings();
     
     // Check if auto-run is enabled
-    if (!settings.autoRun) {
+    if (!settings.autoRunEnabled) {
       console.log('⏸️  Auto-run is disabled. Skipping scraper execution.');
       console.log('💡 Enable auto-run in the dashboard to allow scheduled scraping.');
       process.exit(0);
