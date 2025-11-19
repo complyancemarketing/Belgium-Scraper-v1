@@ -30,7 +30,8 @@ async function runScraper() {
     
     // Run the scraper
     console.log('🔍 Starting Belgium e-invoicing scraper...');
-    await startScraping();
+    console.log('📋 Mode: Checking only new pages (onlyNew: true)');
+    await startScraping({ onlyNew: true, mode: 'auto' });
     
     console.log('✅ Scraper completed successfully');
     process.exit(0);
