@@ -26,7 +26,7 @@ interface CountryPage extends ScrapedPage {
 
 const COUNTRIES = [
   { code: "belgium", name: "Belgium", flag: "🇧🇪", available: true },
-  { code: "uae", name: "UAE", flag: "🇦🇪", available: false },
+  { code: "uae", name: "UAE", flag: "🇦🇪", available: true },
   { code: "germany", name: "Germany", flag: "🇩🇪", available: false },
 ];
 
@@ -36,10 +36,18 @@ export default function Home() {
   const [dateFilter, setDateFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
   const [teamsWebhookInput, setTeamsWebhookInput] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   // Fetch Belgium pages
   const { data: belgiumPages = [] } = useQuery<ScrapedPage[]>({
     queryKey: ['/api/pages'],
+    refetchInterval: 30000,
+  });
+
+  // Fetch UAE pages
+  const { data: uaePages = [] } = useQuery<ScrapedPage[]>({
+    queryKey: ['/api/uae/pages'],
     refetchInterval: 30000,
   });
 
@@ -74,12 +82,19 @@ export default function Home() {
     });
   };
 
-  // Combine all country pages (for now just Belgium)
-  const allPages: CountryPage[] = belgiumPages.map(page => ({
-    ...page,
-    country: "Belgium",
-    countryCode: "belgium"
-  }));
+  // Combine all country pages
+  const allPages: CountryPage[] = [
+    ...belgiumPages.map(page => ({
+      ...page,
+      country: "Belgium",
+      countryCode: "belgium"
+    })),
+    ...uaePages.map(page => ({
+      ...page,
+      country: "UAE",
+      countryCode: "uae"
+    }))
+  ];
 
   // Filter by date
   const getDateFilteredPages = (pages: CountryPage[]) => {
@@ -116,6 +131,28 @@ export default function Home() {
       );
     })
     .sort((a, b) => new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime());
+
+  // Pagination
+  const totalPages = Math.ceil(filteredPages.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPages = filteredPages.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
+  const handleDateFilterChange = (value: string) => {
+    setDateFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleCountryFilterChange = (value: string) => {
+    setCountryFilter(value);
+    setCurrentPage(1);
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -247,7 +284,7 @@ export default function Home() {
                 type="text"
                 placeholder="Search by title, content, or URL..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -259,7 +296,7 @@ export default function Home() {
                   <Calendar className="h-3 w-3" />
                   Date Range
                 </Label>
-                <Select value={dateFilter} onValueChange={setDateFilter}>
+                <Select value={dateFilter} onValueChange={handleDateFilterChange}>
                   <SelectTrigger id="date-filter">
                     <SelectValue placeholder="Select date range" />
                   </SelectTrigger>
@@ -276,13 +313,14 @@ export default function Home() {
                   <Globe className="h-3 w-3" />
                   Country
                 </Label>
-                <Select value={countryFilter} onValueChange={setCountryFilter}>
+                <Select value={countryFilter} onValueChange={handleCountryFilterChange}>
                   <SelectTrigger id="country-filter">
                     <SelectValue placeholder="Select country" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Countries</SelectItem>
                     <SelectItem value="belgium">🇧🇪 Belgium</SelectItem>
+                    <SelectItem value="uae">🇦🇪 UAE</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -301,43 +339,98 @@ export default function Home() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredPages.map((page) => (
-                  <div
-                    key={page.id}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline" className="shrink-0">
-                            {page.country}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {formatDate(page.scrapedAt)}
-                          </span>
+              <>
+                <div className="space-y-4">
+                  {paginatedPages.map((page) => (
+                    <div
+                      key={page.id}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="outline" className="shrink-0">
+                              {page.country}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(page.scrapedAt)}
+                            </span>
+                          </div>
+                          <h4 className="font-semibold text-foreground mb-2 line-clamp-2">
+                            {page.title}
+                          </h4>
+                          <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
+                            {page.summary || page.content}
+                          </p>
+                          <a
+                            href={page.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline flex items-center gap-1 font-mono"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            {page.url.length > 60 ? page.url.substring(0, 60) + '...' : page.url}
+                          </a>
                         </div>
-                        <h4 className="font-semibold text-foreground mb-2 line-clamp-2">
-                          {page.title}
-                        </h4>
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
-                          {page.summary || page.content}
-                        </p>
-                        <a
-                          href={page.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline flex items-center gap-1 font-mono"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          {page.url.length > 60 ? page.url.substring(0, 60) + '...' : page.url}
-                        </a>
                       </div>
                     </div>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {startIndex + 1} to {Math.min(endIndex, filteredPages.length)} of {filteredPages.length} results
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="w-9"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

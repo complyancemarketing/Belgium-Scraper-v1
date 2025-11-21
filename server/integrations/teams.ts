@@ -2,6 +2,7 @@ interface TeamsNotificationPage {
   title: string;
   url: string;
   summary?: string;
+  matchedKeyword?: string;
 }
 
 const BATCH_SIZE = 10; // Send 10 pages per message to avoid Teams message limits
@@ -32,10 +33,13 @@ export async function sendTeamsNotification(
     
     const lines = batch
       .map((page, index) => {
+        const keywordText = page.matchedKeyword 
+          ? `\n   🔑 Keyword: ${page.matchedKeyword}` 
+          : '';
         const summaryText = page.summary 
           ? `\n   📝 ${page.summary}\n` 
           : '\n';
-        return `${startNum + index}. **[${page.title}](${page.url})**${summaryText}`;
+        return `${startNum + index}. **[${page.title}](${page.url})**${keywordText}${summaryText}`;
       })
       .join("\n");
 
